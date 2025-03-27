@@ -17,6 +17,14 @@ info() {
   echo "[+] $1"
 }
 
+printf "\n"
+printf "    _   _          _     _____                              \n"
+printf "   | \\ | |   ___  | |_  | ____|  _ __    _   _   _ __ ___  \n"
+printf "   |  \\| |  / _ \\ | __| |  _|   | '_ \\  | | | | | '_ \` _ \\ \n"
+printf "   | |\\  | |  __/ | |_  | |___  | | | | | |_| | | | | | | |\n"
+printf "   |_| \\_|  \\___|  \\__| |_____| |_| |_|  \\__,_| |_| |_| |_|\n"
+printf "\n"
+
 # Check if running as root
 if [ "$UID" -ne 0 ]; then
   error_exit "This script must be run as root. Try 'sudo $0'"
@@ -32,14 +40,14 @@ REQUIREMENTS="requirements.txt"
 info "Checking dependencies..."
 
 # Check for Nmap
-if ! command -v nmap &> /dev/null; then
+if ! command -v nmap &>/dev/null; then
   info "Nmap not found. Installing..."
   apt update
   apt install -y nmap || error_exit "Failed to install Nmap"
 fi
 
 # Check for Chromium
-if ! command -v chromium-browser &> /dev/null && ! command -v chromium &> /dev/null; then
+if ! command -v chromium-browser &>/dev/null && ! command -v chromium &>/dev/null; then
   info "Chromium not found. Installing..."
   apt update
   apt install -y chromium-browser || error_exit "Failed to install Chromium"
@@ -64,6 +72,7 @@ fi
 # Run the main script
 info "Running network enumeration..."
 if [ -f "$SCRIPT" ]; then
+  trap 'error_exit "Script interrupted by user (Ctrl+C)"' SIGINT
   python3 "$SCRIPT"
 else
   error_exit "Main script '$SCRIPT' not found"
