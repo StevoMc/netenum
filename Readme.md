@@ -6,7 +6,7 @@ Netenum is a python script to automate the initial information gathering phase a
 
 - Discover live hosts on the network using Nmap
 - Perform thorough port scan on each host using Nmap
-- Curl all the webpages hosted on the webserver to discover hidden webpages
+- Curl and screenshot all the webpages hosted to discover hidden webpages
 
 ## Installation
 
@@ -14,6 +14,18 @@ Netenum is a python script to automate the initial information gathering phase a
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+```
+
+Install Nmap
+
+```bash
+sudo apt install nmap
+```
+
+Install Chromium
+
+```bash
+sudo apt install chromium-browser
 ```
 
 ## Usage
