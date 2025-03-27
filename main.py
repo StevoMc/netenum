@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import secrets
 import subprocess
 import threading
 import time
@@ -104,16 +105,32 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# openssl rand -hex 32
+# Check for existing token file
+token_file = "api_token.txt"
+if os.path.exists(token_file):
+    with open(token_file, "r") as f:
+        token = f.read().strip()
+    logger.debug(f"Using existing token from {token_file}")
+else:
+    token = secrets.token_hex(32)
+    # Save token to file for persistence
+    with open(token_file, "w") as f:
+        f.write(token)
+    logger.debug(f"Generated and saved new token to {token_file}")
+
+logger.info("="*100)
+logger.info(f"\033[93mAPI TOKEN: {token}\033[0m")
+logger.info("="*100 + "\n")
+
 app.add_middleware(
     TokenAuthMiddleware,
-    # token=None,
-    token="b3b4b3b4b3b4b3b4b3b4b3b4b3b4b3b4",
+    token=token,
+    # TODO: Exclude paths does not work as expected
     exclude_paths=["/", "/docs", "/api/v1/"],
 )
 app.add_middleware(
     RateLimiterMiddleware,
-    max_requests=1000,
+    max_requests=250,
     window_seconds=60
 )
 
@@ -128,6 +145,7 @@ state = State(scanning=False, current_host=None)
 # Make sure the scan directory exists else create it
 if not os.path.exists("scans"):
     os.makedirs("scans", exist_ok=True)
+
 
 def get_icon(os: str) -> str:
     if type(os) is not str:
@@ -737,4 +755,4 @@ if __name__ == "__main__":
         exit(1)
 
     uvicorn.run("main:app", host="0.0.0.0", port=8000,
-                server_header=False, reload=True)
+                server_header=False, workers=1)
