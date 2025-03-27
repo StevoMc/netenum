@@ -4,19 +4,22 @@ import concurrent.futures
 import ipaddress
 import json
 import logging
+import multiprocessing
 import os
 import re
 import secrets
 import subprocess
+import sys
 import threading
 import time
 import urllib.parse
 from dataclasses import asdict, dataclass
+from functools import partial
 from queue import Queue
 from typing import List, Optional
 
 import uvicorn
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.routing import APIRouter
@@ -576,8 +579,9 @@ async def scan_endpoint(scan_input: ScanInput):
             detail="A scan is already in progress. Please wait for it to complete."
         )
 
-    # Create a queue for thread-safe log streaming
-    log_queue = Queue()
+    # Create a shared queue that works with multiprocessing
+    manager = multiprocessing.Manager()
+    log_queue = manager.Queue()
     log_queue.put(f"Initiating scan of {network}...\n")
 
     # Custom log handler to capture logs
@@ -595,15 +599,15 @@ async def scan_endpoint(scan_input: ScanInput):
     async def stream_logs():
         """Generate log entries as they become available"""
         try:
-            scan_thread = threading.Thread(
-                target=run_scan,
-                args=(str(network),),
-                daemon=True
+            scan_process = multiprocessing.Process(
+            target=run_scan,
+            args=(str(network), log_queue),
+            daemon=True
             )
-            scan_thread.start()
+            scan_process.start()
 
             # Stream logs while scan is running
-            while scan_thread.is_alive() or not log_queue.empty():
+            while scan_process.is_alive() or not log_queue.empty():
                 try:
                     # Non-blocking to allow checking if thread is still alive
                     log_entry = log_queue.get(block=False)
@@ -624,7 +628,6 @@ async def scan_endpoint(scan_input: ScanInput):
         finally:
             # Clean up
             logger.removeHandler(queue_handler)
-
 
     return StreamingResponse(
         stream_logs(),
@@ -762,11 +765,10 @@ async def download():
 
 
 if __name__ == "__main__":
-
     # Check if running root
     if os.geteuid() != 0:
         logger.error("This script must be run as root")
-        exit(1)
+        sys.exit(1)
 
     uvicorn.run("main:app", host="0.0.0.0", port=8000,
                 server_header=False, workers=4)
