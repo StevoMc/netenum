@@ -10,6 +10,8 @@ Netenum is a python script to automate the initial information gathering phase a
 
 ## Installation
 
+Python 3.10 or higher is required to run this script.
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
