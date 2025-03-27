@@ -611,6 +611,8 @@ async def scan_endpoint(scan_input: ScanInput):
         finally:
             # Clean up
             logger.removeHandler(queue_handler)
+            # Release the thread
+            scan_thread.join()
 
     return StreamingResponse(
         stream_logs(),
