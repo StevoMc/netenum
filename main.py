@@ -595,8 +595,6 @@ async def scan_endpoint(scan_input: ScanInput):
     async def stream_logs():
         """Generate log entries as they become available"""
         try:
-            # Start scan in background using thread pool to avoid blocking
-            # Use run_in_threadpool to ensure the main event loop isn't blocked
             scan_thread = threading.Thread(
                 target=run_scan,
                 args=(str(network),),
@@ -626,8 +624,7 @@ async def scan_endpoint(scan_input: ScanInput):
         finally:
             # Clean up
             logger.removeHandler(queue_handler)
-            # Don't join the thread here as it could block
-            # The daemon flag ensures the thread will exit when the main thread exits
+
 
     return StreamingResponse(
         stream_logs(),
