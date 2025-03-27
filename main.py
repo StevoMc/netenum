@@ -366,7 +366,7 @@ def run_scan(network="192.168.178.0/24"):
     # Limit ports to minimize surface
     ports = list(range(1, 65536))
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         futures = {executor.submit(
             port_scan, h, ports, scan): h for h in alive_hosts}
         for future in concurrent.futures.as_completed(futures):
@@ -611,6 +611,8 @@ async def scan_endpoint(scan_input: ScanInput):
         finally:
             # Clean up
             logger.removeHandler(queue_handler)
+            # Release the thread
+            scan_thread.join()
 
     return StreamingResponse(
         stream_logs(),
