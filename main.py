@@ -324,7 +324,7 @@ def http_scan(scan: Scan) -> Scan:
                         "--headless",
                         "--disable-gpu",
                         "--no-sandbox",
-                        "--screenshot=screenshot.png",
+                        f"--screenshot=screenshot_{host.ip.replace('.', '-')}_{port.port}.png",
                         "--window-size=1280,720",
                         "--ignore-certificate-errors",
                         "--virtual-time-budget=5000",
@@ -337,16 +337,47 @@ def http_scan(scan: Scan) -> Scan:
                     check=False
                 )
 
-                if os.path.exists("screenshot.png"):
-                    with open("screenshot.png", "rb") as f:
-                        screenshot = f.read()
-                    base64_screenshot = base64.b64encode(
-                        screenshot).decode("utf-8")
-                    url_encoded_screenshot = urllib.parse.quote(
-                        base64_screenshot)
-                    port.screenshot = url_encoded_screenshot
-
-                    os.remove("screenshot.png")
+                try:
+                    screenshot_filename = f"screenshot_{host.ip.replace('.', '-')}_{port.port}.png"
+                    if os.path.exists(screenshot_filename):
+                        with open(screenshot_filename, "rb") as f:
+                            screenshot = f.read()
+                        base64_screenshot = base64.b64encode(screenshot).decode("utf-8")
+                        url_encoded_screenshot = urllib.parse.quote(base64_screenshot)
+                        port.screenshot = url_encoded_screenshot
+                        
+                        # Remove the screenshot file after processing
+                        try:
+                            os.remove(screenshot_filename)
+                        except Exception as e:
+                            logger.warning(f"Failed to remove screenshot file {screenshot_filename}: {e}")
+                except Exception as e:
+                    logger.error(f"Failed to process screenshot for {host.ip}:{port.port}: {e}")
+                    # Fallback: try to capture screenshot directly without using files
+                    try:
+                        logger.info(f"Attempting fallback screenshot capture for {host.ip}:{port.port}")
+                        process = subprocess.Popen(
+                            [
+                                "chromium-browser",
+                                "--headless",
+                                "--disable-gpu",
+                                "--no-sandbox",
+                                "--screenshot=/dev/stdout",
+                                "--window-size=1280,720",
+                                "--ignore-certificate-errors",
+                                f"{protocol}://{host.ip}:{port.port}"
+                            ],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE
+                        )
+                        screenshot, stderr = process.communicate(timeout=10)
+                        if screenshot:
+                            base64_screenshot = base64.b64encode(screenshot).decode("utf-8")
+                            url_encoded_screenshot = urllib.parse.quote(base64_screenshot)
+                            port.screenshot = url_encoded_screenshot
+                            logger.info(f"Fallback screenshot captured for {host.ip}:{port.port}")
+                    except Exception as fallback_error:
+                        logger.error(f"Fallback screenshot attempt also failed for {host.ip}:{port.port}: {fallback_error}")
 
                 save_scan_to_json(scan)
             except subprocess.CalledProcessError:
