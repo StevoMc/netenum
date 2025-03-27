@@ -367,7 +367,19 @@
 								networkSelect.appendChild(emptyOption);
 
 								// Add networks from API
-								data.available_networks.forEach((network) => {
+								data.available_networks
+								// unique
+									.filter((network, index, self) => {
+										return (
+											index ===
+											self.findIndex((n) => n === network)
+										);
+									})
+									.sort()
+									// sort
+									.sort((a, b) => a.localeCompare(b))
+									// add to select
+								.forEach((network) => {
 									const option = document.createElement("option");
 									option.value = network;
 									option.textContent = network;
