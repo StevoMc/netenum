@@ -1358,7 +1358,7 @@
 					// Simulation tick - optimized for better performance
 					this.simulation.on("tick", () => {
 						// Limit update frequency for better performance
-						if (this.simulation.alpha() < 0.5 && Math.random() > 0.3) return;
+						if (this.simulation.alpha() < 0.3 && Math.random() > 0.2) return;
 
 						this.link
 							.attr("x1", (d) => d.source.x)
