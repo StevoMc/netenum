@@ -1,28 +1,36 @@
 # Netenum
 
-Netenum is a python script to automate the initial information gathering phase and service enumeration phase during an internal penetration test.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## Features
+Netenum is a powerful Python tool designed to automate the initial information gathering and service enumeration phases during internal penetration testing. It streamlines network reconnaissance by discovering live hosts, scanning for open ports, and capturing web content for analysis.
 
-- Discover live hosts on the network using Nmap
-- Perform thorough port scan on each host using Nmap
-- Curl and screenshot all the webpages hosted to discover hidden webpages
+## 🚀 Features
 
-## Preview
+- **Network Discovery**: Efficiently identify live hosts on the network using Nmap
+- **Service Enumeration**: Conduct comprehensive port scanning on discovered hosts
+- **Web Content Analysis**: Automatically curl and screenshot web pages to discover hidden content
+- **Reporting**: Generate detailed reports summarizing findings for easy analysis
 
-This is how a scan looks like:
+## 📊 Preview
+
+This is how a scan looks like in action:
 
 ![Scan preview](images/home.png)
 
-The script generates a report in the end:
+The script generates a detailed report upon completion:
 
 ![Network Scan Report](images/report.png)
 
-## Installation
+## 📋 Requirements
 
-Python 3.10 or higher is required to run this script.
+- Python 3.10 or higher
+- Nmap
+- Chromium browser
+- Linux-based operating system
 
-### Automatic Installation
+## 🔧 Installation
+
+### Quick Installation
 
 ```bash
 sudo ./netenum.sh
@@ -30,31 +38,40 @@ sudo ./netenum.sh
 
 ### Manual Installation
 
+1. Create and activate a Python virtual environment:
+  ```bash
+  python3 -m venv .venv
+  source .venv/bin/activate
+  ```
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+2. Install Python dependencies:
+  ```bash
+  pip install -r requirements.txt
+  ```
 
-Install Nmap
+3. Install required system packages:
+  ```bash
+  sudo apt install nmap chromium-browser
+  ```
 
-```bash
-sudo apt install nmap
-```
+## 📝 Usage
 
-Install Chromium
-
-```bash
-sudo apt install chromium-browser
-```
-
-## Usage
+Run Netenum with administrative privileges:
 
 ```bash
 sudo ./netenum.sh
 ```
 
-## License
+The tool will:
+1. Scan your network for live hosts
+2. Enumerate services on discovered hosts
+3. Capture screenshots of web services
+4. Generate a comprehensive report
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
+## 🤝 Contributing
+
+Contributions are welcome! Feel free to submit a Pull Request.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
