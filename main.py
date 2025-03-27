@@ -4,7 +4,6 @@ import concurrent.futures
 import ipaddress
 import json
 import logging
-import multiprocessing
 import os
 import re
 import secrets
@@ -14,7 +13,6 @@ import threading
 import time
 import urllib.parse
 from dataclasses import asdict, dataclass
-from functools import partial
 from queue import Queue
 from typing import List, Optional
 
@@ -579,9 +577,8 @@ async def scan_endpoint(scan_input: ScanInput):
             detail="A scan is already in progress. Please wait for it to complete."
         )
 
-    # Create a shared queue that works with multiprocessing
-    manager = multiprocessing.Manager()
-    log_queue = manager.Queue()
+    # Create a queue for thread-safe log streaming
+    log_queue = Queue()
     log_queue.put(f"Initiating scan of {network}...\n")
 
     # Custom log handler to capture logs
@@ -599,15 +596,15 @@ async def scan_endpoint(scan_input: ScanInput):
     async def stream_logs():
         """Generate log entries as they become available"""
         try:
-            scan_process = multiprocessing.Process(
-            target=run_scan,
-            args=(str(network), log_queue),
-            daemon=True
+            scan_thread = threading.Thread(
+                target=run_scan,
+                args=(str(network),),
+                daemon=True
             )
-            scan_process.start()
+            scan_thread.start()
 
             # Stream logs while scan is running
-            while scan_process.is_alive() or not log_queue.empty():
+            while scan_thread.is_alive() or not log_queue.empty():
                 try:
                     # Non-blocking to allow checking if thread is still alive
                     log_entry = log_queue.get(block=False)
