@@ -302,13 +302,17 @@
 					this.getState();
 
 					// Poll state from API every 30 seconds
+					timeout = 30000;
 					setInterval(() => {
-						this.getState();
-					}, 30000);
+						timeout = this.getState();
+					}, timeout);
 				},
 
 				getState: function () {
 					const scanStatus = document.getElementById("scanStatus");
+
+					timeout = 30000;
+
 					fetch("/api/v1/state")
 						.then((response) => {
 							if (!response.ok)
@@ -321,9 +325,11 @@
 									? `Scanning: ${data.current_host}`
 									: "Scan in progress...";
 								scanStatus.style.color = "#007bff";
+								timeout = 30000;
 							} else {
 								scanStatus.innerText = "No scan in progress";
 								scanStatus.style.color = "green";
+								timeout = 120000;
 							}
 						})
 						.catch((error) => {
@@ -333,6 +339,7 @@
 							}`;
 							scanStatus.style.color = "red";
 						});
+					return timeout;
 				},
 
 				// Fetch available networks from API
