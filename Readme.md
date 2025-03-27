@@ -22,6 +22,15 @@ The script generates a report in the end:
 
 Python 3.10 or higher is required to run this script.
 
+### Automatic Installation
+
+```bash
+sudo ./netenum.sh
+```
+
+### Manual Installation
+
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
