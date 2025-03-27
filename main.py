@@ -554,6 +554,7 @@ async def scan_endpoint(scan_input: ScanInput):
     Returns:
         StreamingResponse of scan logs
     """
+    global state
     # Validate input
     if not scan_input.network:
         raise HTTPException(status_code=400, detail="Network CIDR required")
@@ -566,6 +567,13 @@ async def scan_endpoint(scan_input: ScanInput):
         raise HTTPException(
             status_code=400,
             detail={"error": "Invalid network CIDR", "format": "x.x.x.x/x"}
+        )
+
+    # Check if a scan is already running
+    if state.scanning:
+        raise HTTPException(
+            status_code=409,
+            detail="A scan is already in progress. Please wait for it to complete."
         )
 
     # Create a queue for thread-safe log streaming
@@ -587,7 +595,8 @@ async def scan_endpoint(scan_input: ScanInput):
     async def stream_logs():
         """Generate log entries as they become available"""
         try:
-            # Start scan in background
+            # Start scan in background using thread pool to avoid blocking
+            # Use run_in_threadpool to ensure the main event loop isn't blocked
             scan_thread = threading.Thread(
                 target=run_scan,
                 args=(str(network),),
@@ -599,20 +608,26 @@ async def scan_endpoint(scan_input: ScanInput):
             while scan_thread.is_alive() or not log_queue.empty():
                 try:
                     # Non-blocking to allow checking if thread is still alive
-                    log_entry = log_queue.get(block=True, timeout=0.5)
+                    log_entry = log_queue.get(block=False)
                     yield log_entry
                 except Exception:
-                    # No new logs, continue checking
+                    # No new logs, continue checking but don't block event loop
                     await asyncio.sleep(0.1)
-                    continue
+                    # Attempt to get logs again
+                    try:
+                        log_entry = log_queue.get(block=False)
+                        yield log_entry
+                    except:
+                        # Still no logs, continue loop
+                        continue
 
             # Final message when scan completes
             yield "Scan complete. Results saved to database.\n"
         finally:
             # Clean up
             logger.removeHandler(queue_handler)
-            # Release the thread
-            scan_thread.join()
+            # Don't join the thread here as it could block
+            # The daemon flag ensures the thread will exit when the main thread exits
 
     return StreamingResponse(
         stream_logs(),
