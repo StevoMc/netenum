@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import secrets
+import socket
 import subprocess
 import sys
 import threading
@@ -342,20 +343,25 @@ def http_scan(scan: Scan) -> Scan:
                     if os.path.exists(screenshot_filename):
                         with open(screenshot_filename, "rb") as f:
                             screenshot = f.read()
-                        base64_screenshot = base64.b64encode(screenshot).decode("utf-8")
-                        url_encoded_screenshot = urllib.parse.quote(base64_screenshot)
+                        base64_screenshot = base64.b64encode(
+                            screenshot).decode("utf-8")
+                        url_encoded_screenshot = urllib.parse.quote(
+                            base64_screenshot)
                         port.screenshot = url_encoded_screenshot
-                        
+
                         # Remove the screenshot file after processing
                         try:
                             os.remove(screenshot_filename)
                         except Exception as e:
-                            logger.warning(f"Failed to remove screenshot file {screenshot_filename}: {e}")
+                            logger.warning(
+                                f"Failed to remove screenshot file {screenshot_filename}: {e}")
                 except Exception as e:
-                    logger.error(f"Failed to process screenshot for {host.ip}:{port.port}: {e}")
+                    logger.error(
+                        f"Failed to process screenshot for {host.ip}:{port.port}: {e}")
                     # Fallback: try to capture screenshot directly without using files
                     try:
-                        logger.info(f"Attempting fallback screenshot capture for {host.ip}:{port.port}")
+                        logger.info(
+                            f"Attempting fallback screenshot capture for {host.ip}:{port.port}")
                         process = subprocess.Popen(
                             [
                                 "chromium-browser",
@@ -372,12 +378,16 @@ def http_scan(scan: Scan) -> Scan:
                         )
                         screenshot, stderr = process.communicate(timeout=10)
                         if screenshot:
-                            base64_screenshot = base64.b64encode(screenshot).decode("utf-8")
-                            url_encoded_screenshot = urllib.parse.quote(base64_screenshot)
+                            base64_screenshot = base64.b64encode(
+                                screenshot).decode("utf-8")
+                            url_encoded_screenshot = urllib.parse.quote(
+                                base64_screenshot)
                             port.screenshot = url_encoded_screenshot
-                            logger.info(f"Fallback screenshot captured for {host.ip}:{port.port}")
+                            logger.info(
+                                f"Fallback screenshot captured for {host.ip}:{port.port}")
                     except Exception as fallback_error:
-                        logger.error(f"Fallback screenshot attempt also failed for {host.ip}:{port.port}: {fallback_error}")
+                        logger.error(
+                            f"Fallback screenshot attempt also failed for {host.ip}:{port.port}: {fallback_error}")
 
                 save_scan_to_json(scan)
             except subprocess.CalledProcessError:
@@ -398,7 +408,7 @@ def run_scan(network="192.168.178.0/24"):
     # Limit ports to minimize surface
     ports = list(range(1, 65536))
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         futures = {executor.submit(
             port_scan, h, ports, scan): h for h in alive_hosts}
         for future in concurrent.futures.as_completed(futures):
@@ -798,5 +808,24 @@ if __name__ == "__main__":
         logger.error("This script must be run as root")
         sys.exit(1)
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000,
-                server_header=False, workers=4)
+    def find_free_port():
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('', 0))  # Bind to port 0 to get a free port
+        port = s.getsockname()[1]
+        s.close()
+        return port
+
+    PORT = 3000
+
+    try:
+        uvicorn.run("main:app", host="0.0.0.0", port=PORT,
+                    server_header=False, workers=4)
+    except OSError as e:
+        if "Address already in use" in str(e):
+            free_port = find_free_port()
+            logger.info(
+                f"Port {PORT} is in use. Falling back to port {free_port}")
+            uvicorn.run("main:app", host="0.0.0.0", port=free_port,
+                        server_header=False, workers=4)
+        else:
+            raise
