@@ -1,0 +1,1545 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Network Visualization</title>
+		<script src="https://d3js.org/d3.v7.min.js"></script>
+		<style>
+			* {
+				box-sizing: border-box;
+				/* border: 1px solid red; */
+			}
+			body {
+				display: flex;
+				margin: 0;
+				font-family: Arial, sans-serif;
+				flex-direction: column;
+				height: 100vh;
+			}
+			.header {
+				width: 100%;
+				background-color: #333;
+				color: #fff;
+				padding: 10px 20px;
+				box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+			}
+			.header .node-details {
+				font-size: 16px;
+			}
+			.container {
+				display: flex;
+				flex: 1 1;
+				overflow: hidden;
+			}
+			.sidebar {
+				width: 250px;
+				background-color: #f4f4f4;
+				padding: 20px 10px;
+				box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+				overflow-y: auto;
+				transition: width 0.3s ease;
+				position: relative;
+				z-index: 10;
+			}
+			.sidebar-collapsed {
+				width: 40px !important;
+				overflow: hidden;
+				padding: 20px 5px;
+			}
+			.sidebar-content {
+				opacity: 1;
+				transition: opacity 0.3s ease;
+			}
+			.sidebar-collapsed .sidebar-content {
+				opacity: 0;
+			}
+			.toggle-sidebar {
+				/* position: absolute;
+                top: 10px;
+                right: 10px; */
+				width: 30px;
+				height: 30px;
+				border-radius: 50%;
+				background-color: #333;
+				color: white;
+				border: none;
+				cursor: pointer;
+				z-index: 20;
+			}
+			.sidebar h3,
+			.sidebar h4 {
+				margin-top: 15px;
+				margin-bottom: 10px;
+			}
+			.sidebar input[type="text"],
+			.sidebar select,
+			.sidebar button {
+				width: 100%;
+				padding: 8px;
+				margin-bottom: 10px;
+				box-sizing: border-box;
+			}
+			.sidebar button {
+				background-color: #007bff;
+				color: #fff;
+				border: none;
+				cursor: pointer;
+				border-radius: 4px;
+				transition: background-color 0.3s;
+			}
+			.sidebar button:hover {
+				background-color: #0056b3;
+			}
+			.network-select-container {
+				margin-bottom: 10px;
+			}
+			.network-select-header {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				margin-bottom: 5px;
+			}
+			.refresh-networks {
+				background-color: #28a745;
+				padding: 4px 8px;
+				width: auto;
+				margin: 0;
+			}
+			.status-message {
+				padding: 8px 0;
+				font-size: 14px;
+			}
+			.tooltip {
+				position: absolute;
+				text-align: center;
+				padding: 8px;
+				font: 12px sans-serif;
+				background: rgba(255, 255, 255, 0.9);
+				border: 1px solid #ddd;
+				border-radius: 8px;
+				pointer-events: none;
+				box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+				max-width: 500px;
+			}
+			.legend {
+				position: absolute;
+				bottom: 20px;
+				right: 20px;
+				background: rgba(255, 255, 255, 0.9);
+				padding: 10px;
+				border-radius: 8px;
+				box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+				font-size: 14px;
+			}
+			.legend-item {
+				display: flex;
+				align-items: center;
+				margin-bottom: 5px;
+			}
+			.legend-color {
+				width: 15px;
+				height: 15px;
+				margin-right: 8px;
+				border-radius: 3px;
+			}
+			.simulation-controls {
+				margin-top: 15px;
+				border-top: 1px solid #ddd;
+				padding-top: 15px;
+			}
+			.simulation-controls button {
+				margin-bottom: 5px;
+			}
+			.filter-controls {
+				margin-bottom: 15px;
+			}
+			@media (max-width: 768px) {
+				.sidebar {
+					width: 200px;
+				}
+				.header .node-details {
+					font-size: 14px;
+				}
+				.legend {
+					font-size: 12px;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div class="header">
+			<h1>Network Visualization</h1>
+			<div class="node-details"></div>
+		</div>
+		<div class="container">
+			<div class="sidebar">
+				<button class="toggle-sidebar" id="toggleSidebar">⇆</button>
+				<div class="sidebar-content">
+					<form id="scanForm">
+						<div class="network-select-container">
+							<div class="network-select-header">
+								<!-- <label for="networkSelect">Networks:</label> -->
+								<button
+									type="button"
+									id="refreshNetworks"
+									class="refresh-networks"
+								>
+									⟳
+								</button>
+							</div>
+							<select id="networkSelect">
+								<option value="">Loading networks...</option>
+							</select>
+						</div>
+
+						<div>
+							<label for="scanInput">Custom Network:</label>
+							<input
+								type="text"
+								id="scanInput"
+								name="network"
+								placeholder="192.168.1.0/24"
+								pattern="^([0-9]{1,3}\.){3}[0-9]{1,3}(\/[0-9]{1,2})?$"
+								title="Enter a valid IP network (e.g., 192.168.1.0/24)"
+							/>
+						</div>
+						<div>
+							<button type="submit" id="scanButton">Scan</button>
+						</div>
+						<div id="scanStatus" class="status-message"></div>
+					</form>
+
+					<div class="filter-controls">
+						<h3>Filters</h3>
+						<input
+							type="text"
+							id="hostFilter"
+							placeholder="Search hosts/ports"
+						/>
+						<label>
+							<input type="checkbox" id="togglePorts" checked />
+							Show Ports
+						</label>
+						<br />
+						<label>
+							<input type="checkbox" id="hideOrphans" />
+							Hide Orphans
+						</label>
+						<br />
+						<label>
+							<input type="checkbox" id="onlyScreenshots" />
+							Only Screenshots
+						</label>
+					</div>
+
+					<div class="simulation-controls">
+						<h4>Simulation</h4>
+						<button id="pauseSimulation">Pause</button>
+						<button id="resetLayout">Reset Layout</button>
+					</div>
+					<div>
+						<h4>Report</h4>
+						<button id="generateReport">Generate Report</button>
+					</div>
+				</div>
+			</div>
+			<div id="graphContainer" style="flex: 1; position: relative"></div>
+
+			<div id="legend" class="legend" style="display: none">
+				<div class="legend-item">
+					<div class="legend-color" style="background-color: steelblue"></div>
+					<div>Host</div>
+				</div>
+				<div class="legend-item">
+					<div class="legend-color" style="background-color: red"></div>
+					<div>Port</div>
+				</div>
+				<div class="legend-item">
+					<div class="legend-color" style="background-color: green"></div>
+					<div>Screenshot</div>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			// -----------------------------------------------------
+			// Module: Core Application
+			// -----------------------------------------------------
+			const App = {
+				// Constants
+				portRadius: 8,
+				nodeRadius: 12,
+
+				// State
+				nodes: [],
+				links: [],
+				svg: null,
+				simulation: null,
+				tooltip: null,
+				link: null,
+				node: null,
+				currentFilterHost: null,
+				simulationRunning: true,
+
+				// Initialize the application
+				init: function () {
+					// Set up UI elements and event handlers
+					this.setupScanForm();
+					this.setupFilterControls();
+					this.setupSimulationControls();
+					this.setupSidebarToggle();
+					this.generateReport();
+
+					// Load available networks
+					this.loadAvailableNetworks();
+
+					// Load graph data
+					this.loadGraphData();
+
+					// Get initial state from API
+					this.getState();
+
+					// Poll state from API every 30 seconds
+					setInterval(() => {
+						this.getState();
+					}, 30000);
+				},
+
+				getState: function () {
+					const scanStatus = document.getElementById("scanStatus");
+					fetch("/api/v1/state")
+						.then((response) => {
+							if (!response.ok)
+								throw new Error(`HTTP error ${response.status}`);
+							return response.json();
+						})
+						.then((data) => {
+							if (data.scanning) {
+								scanStatus.innerText = data.current_host
+									? `Scanning: ${data.current_host}`
+									: "Scan in progress...";
+								scanStatus.style.color = "#007bff";
+							} else {
+								scanStatus.innerText = "No scan in progress";
+								scanStatus.style.color = "green";
+							}
+						})
+						.catch((error) => {
+							console.error("Error fetching state:", error);
+							scanStatus.innerText = `Error: ${
+								error.message || "Failed to fetch state"
+							}`;
+							scanStatus.style.color = "red";
+						});
+				},
+
+				// Fetch available networks from API
+				loadAvailableNetworks: function () {
+					const networkSelect = document.getElementById("networkSelect");
+					const scanStatus = document.getElementById("scanStatus");
+
+					fetch("/networks")
+						.then((response) => {
+							if (!response.ok)
+								throw new Error(`HTTP error ${response.status}`);
+							return response.json();
+						})
+						.then((data) => {
+							networkSelect.innerHTML = "";
+
+							if (
+								data.available_networks &&
+								data.available_networks.length > 0
+							) {
+								// Add empty option first
+								const emptyOption = document.createElement("option");
+								emptyOption.value = "";
+								emptyOption.textContent = "-- Select a network --";
+								networkSelect.appendChild(emptyOption);
+
+								// Add networks from API
+								data.available_networks.forEach((network) => {
+									const option = document.createElement("option");
+									option.value = network;
+									option.textContent = network;
+									networkSelect.appendChild(option);
+								});
+							} else {
+								const option = document.createElement("option");
+								option.value = "";
+								option.textContent = "No networks available";
+								networkSelect.appendChild(option);
+							}
+						})
+						.catch((error) => {
+							console.error("Error fetching networks:", error);
+							networkSelect.innerHTML =
+								'<option value="">Error loading networks</option>';
+							scanStatus.innerText = `Error: ${
+								error.message || "Failed to load networks"
+							}`;
+							scanStatus.style.color = "red";
+						});
+				},
+
+				// Load graph data from API
+				loadGraphData: function () {
+					const scanStatus = document.getElementById("scanStatus");
+
+					fetch("/api/v1/graph")
+						.then((response) => {
+							if (!response.ok)
+								throw new Error(`HTTP error ${response.status}`);
+							return response.json();
+						})
+						.then((data) => {
+							this.nodes = data.nodes;
+							this.links = data.links;
+							this.initializeVisualization();
+							document.getElementById("legend").style.display = "block";
+						})
+						.catch((error) => {
+							console.error("Error fetching data:", error);
+							scanStatus.innerText = `Error: ${
+								error.message || "Failed to fetch graph data"
+							}`;
+							scanStatus.style.color = "red";
+						});
+				},
+
+				// Set up scan form functionality
+				setupScanForm: function () {
+					const scanForm = document.getElementById("scanForm");
+					const scanButton = document.getElementById("scanButton");
+					const scanStatus = document.getElementById("scanStatus");
+					const networkSelect = document.getElementById("networkSelect");
+					const refreshNetworks = document.getElementById("refreshNetworks");
+
+					// Set up network selection
+					networkSelect.addEventListener("change", function () {
+						if (this.value) {
+							document.getElementById("scanInput").value = this.value;
+						}
+					});
+
+					// Set up refresh button
+					refreshNetworks.addEventListener("click", () => {
+						refreshNetworks.disabled = true;
+						refreshNetworks.textContent = "...";
+						this.loadAvailableNetworks();
+						setTimeout(() => {
+							refreshNetworks.disabled = false;
+							refreshNetworks.textContent = "⟳";
+						}, 1000);
+					});
+
+					// Set up scan form submission
+					scanForm.addEventListener("submit", async (event) => {
+						event.preventDefault();
+
+						// Get network from either input or select
+						let network = document.getElementById("scanInput").value.trim();
+						if (!network) network = networkSelect.value;
+						if (!network) {
+							scanStatus.innerText = "Please enter or select a network";
+							scanStatus.style.color = "red";
+							return;
+						}
+
+						// Update UI to loading state
+						scanButton.disabled = true;
+						scanButton.innerText = "Scanning...";
+						scanStatus.innerText = "Scan in progress...";
+						scanStatus.style.color = "#007bff";
+
+						try {
+							const response = await fetch("/api/v1/scan", {
+								method: "POST",
+								headers: {
+									"Content-Type": "application/json",
+									Accept: "application/json",
+								},
+								body: JSON.stringify({ network }),
+							});
+
+							if (!response.ok) {
+								throw new Error(
+									`Server responded with ${response.status}: ${response.statusText}`
+								);
+							}
+
+							const data = await response.json();
+							console.log("Scan completed:", data);
+
+							scanStatus.innerText = "Scan completed successfully!";
+							scanStatus.style.color = "green";
+						} catch (error) {
+							console.error("Error scanning:", error);
+							scanStatus.innerText = `Error: ${
+								error.message || "Failed to complete scan"
+							}`;
+							scanStatus.style.color = "red";
+						} finally {
+							// Restore button state
+							scanButton.disabled = false;
+							scanButton.innerText = "Scan";
+							// Refresh the graph data if needed
+							setTimeout(() => {
+								window.location.reload();
+							}, 2000);
+						}
+					});
+				},
+
+				// Set up filter controls
+				setupFilterControls: function () {
+					const hostFilter = document.getElementById("hostFilter");
+					const togglePorts = document.getElementById("togglePorts");
+					const hideOrphans = document.getElementById("hideOrphans");
+					const onlyScreenshots = document.getElementById("onlyScreenshots");
+
+					hostFilter.addEventListener("input", () => {
+						this.filterNodes(
+							hostFilter.value,
+							togglePorts.checked,
+							hideOrphans.checked,
+							onlyScreenshots.checked
+						);
+					});
+
+					togglePorts.addEventListener("change", () => {
+						this.filterNodes(
+							hostFilter.value,
+							togglePorts.checked,
+							hideOrphans.checked,
+							onlyScreenshots.checked
+						);
+					});
+
+					hideOrphans.addEventListener("change", () => {
+						this.filterNodes(
+							hostFilter.value,
+							togglePorts.checked,
+							hideOrphans.checked,
+							onlyScreenshots.checked
+						);
+					});
+
+					onlyScreenshots.addEventListener("change", () => {
+						this.filterNodes(
+							hostFilter.value,
+							togglePorts.checked,
+							hideOrphans.checked,
+							onlyScreenshots.checked
+						);
+					});
+				},
+
+				// Apply filters to nodes
+				filterNodes: function (
+					searchText,
+					showPorts,
+					hideOrphans,
+					onlyScreenshots
+				) {
+					// If visualization not initialized yet
+					if (!this.node) return;
+
+					searchText = searchText.toLowerCase();
+
+					// Find orphaned hosts (hosts with no connected ports) if hideOrphans is enabled
+					const orphanedHosts = new Set();
+					if (hideOrphans) {
+						// First, collect all host IDs with no open ports
+						const hostIds = new Set(
+							this.nodes
+								.filter(
+									(d) =>
+										d.type === "host" &&
+										d.open_ports &&
+										d.open_ports.length === 0
+								)
+								.map((d) => d.id)
+						);
+
+						// The remaining hosts are orphaned
+						hostIds.forEach((id) => orphanedHosts.add(id));
+					}
+
+					this.node.attr("visibility", (d) => {
+						// Hide orphaned hosts if hideOrphans is true
+						if (hideOrphans && d.type === "host" && orphanedHosts.has(d.id)) {
+							return "hidden";
+						}
+
+						// Hide nodes with no screenshots if onlyScreenshots is true
+						if (onlyScreenshots && d.type === "port" && !d.screenshot) {
+							return "hidden";
+						}
+
+						// Hide ports if showPorts is false
+						if (d.type === "port" && !showPorts) return "hidden";
+
+						// Apply text filter if provided
+						if (searchText) {
+							// For hosts, match hostname or IP
+							if (d.type === "host") {
+								const hostname = (d.hostname || "").toLowerCase();
+								const ip = (d.ip || "").toLowerCase();
+								return hostname.includes(searchText) || ip.includes(searchText)
+									? "visible"
+									: "hidden";
+							}
+							// For ports, match port number or service name
+							else {
+								const port = String(d.port || "").toLowerCase();
+								const service = (d.service || "").toLowerCase();
+								return port.includes(searchText) || service.includes(searchText)
+									? "visible"
+									: "hidden";
+							}
+						}
+
+						return "visible";
+					});
+
+					// Update links visibility based on connected nodes
+					this.link.attr("visibility", (d) => {
+						const sourceVisible =
+							this.node
+								.filter((n) => n.id === d.source.id)
+								.attr("visibility") === "visible";
+						const targetVisible =
+							this.node
+								.filter((n) => n.id === d.target.id)
+								.attr("visibility") === "visible";
+						return sourceVisible && targetVisible ? "visible" : "hidden";
+					});
+				},
+
+				// Set up simulation controls
+				setupSimulationControls: function () {
+					const pauseBtn = document.getElementById("pauseSimulation");
+					const resetBtn = document.getElementById("resetLayout");
+
+					pauseBtn.addEventListener("click", () => {
+						if (this.simulation) {
+							if (this.simulationRunning) {
+								this.simulation.stop();
+								pauseBtn.innerText = "Resume";
+							} else {
+								this.simulation.restart();
+								pauseBtn.innerText = "Pause";
+							}
+							this.simulationRunning = !this.simulationRunning;
+						}
+					});
+
+					resetBtn.addEventListener("click", () => {
+						if (this.simulation) {
+							this.nodes.forEach((d) => {
+								d.fx = null;
+								d.fy = null;
+							});
+							this.simulation.alpha(1).restart();
+							if (!this.simulationRunning) {
+								pauseBtn.innerText = "Pause";
+								this.simulationRunning = true;
+							}
+						}
+					});
+				},
+
+				// Set up sidebar toggle functionality
+				setupSidebarToggle: function () {
+					const toggleBtn = document.getElementById("toggleSidebar");
+					toggleBtn.addEventListener("click", () => {
+						const sidebar = document.querySelector(".sidebar");
+						sidebar.classList.toggle("sidebar-collapsed");
+
+						setTimeout(() => {
+							// Update visualization dimensions
+							this.resizeVisualization();
+						}, 300);
+					});
+
+					// Handle window resize
+					let resizeTimer;
+					window.addEventListener("resize", () => {
+						clearTimeout(resizeTimer);
+						resizeTimer = setTimeout(() => this.resizeVisualization(), 200);
+					});
+				},
+
+				// Generate a report from the current graph data
+				generateReport: function () {
+					const reportBtn = document.getElementById("generateReport");
+					reportBtn.addEventListener("click", () => {
+						// Create a new window for the report
+						const reportWindow = window.open(
+							"",
+							"_blank",
+							"width=800,height=800"
+						);
+						reportWindow.document.write(
+							"<html><head><title>Network Scan Report</title>"
+						);
+
+						// Add styles for the report
+						reportWindow.document.write(`
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    margin: 20px;
+                    color: #333;
+                    line-height: 1.5;
+                }
+                h1, h2, h3 { color: #333; margin-top: 1.5em; margin-bottom: 0.8em; }
+                h1 { border-bottom: 2px solid #4285f4; padding-bottom: 0.3em; }
+                h2 { border-bottom: 1px solid #ddd; padding-bottom: 0.2em; }
+                
+                .card {
+                    border-radius: 8px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                    margin-bottom: 20px;
+                    overflow: hidden;
+                }
+                .card-header {
+                    padding: 15px 20px;
+                    background-color: #f8f9fa;
+                    border-bottom: 1px solid #eee;
+                }
+                .card-body {
+                    padding: 20px;
+                }
+                
+                .host-card {
+                    margin-bottom: 30px;
+                    transition: transform 0.2s;
+                }
+                .host-card:hover {
+                    transform: translateY(-2px);
+                }
+                
+                .host-header {
+                    background-color: #e3f2fd;
+                    color: #0d47a1;
+                    font-weight: bold;
+                    font-size: 18px;
+                }
+                
+                .port-table { 
+                    width: 100%; 
+                    border-collapse: collapse; 
+                    margin: 15px 0; 
+                }
+                .port-table th, .port-table td { 
+                    text-align: left; 
+                    padding: 10px; 
+                    border-bottom: 1px solid #ddd; 
+                }
+                .port-table th { 
+                    background-color: #f2f2f2; 
+                    font-weight: bold;
+                }
+                .port-table tr:hover { 
+                    background-color: #f5f5f5; 
+                }
+                
+                .screenshot-container {
+                    margin: 15px 0;
+                    text-align: center;
+                    background-color: #f8f9fa;
+                    border-radius: 6px;
+										border: 1px solid #111;
+                    padding: 15px;
+                }
+                .screenshot { 
+                    max-width: 100%; 
+                    height: auto;
+                    margin: 10px auto; 
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                }
+                
+                .summary { 
+                    background: #f8f9fa; 
+                    padding: 20px; 
+                    margin-bottom: 30px; 
+                    border-radius: 8px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }
+                
+                .stat-card {
+                    flex: 1; 
+                    min-width: 150px; 
+                    border-radius: 8px; 
+                    padding: 15px; 
+                    text-align: center; 
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                    transition: transform 0.2s;
+                }
+                .stat-card:hover {
+                    transform: translateY(-3px);
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+                }
+                .stat-number {
+                    font-size: 32px; 
+                    font-weight: bold;
+                }
+                .stat-label {
+                    font-size: 14px; 
+                    color: #555;
+                }
+                
+                .bar-chart {
+                    background-color: #eee; 
+                    height: 20px; 
+                    border-radius: 4px; 
+                    overflow: hidden;
+                }
+                
+                @media print {
+                    body { margin: 0.5in; }
+                    .card { break-inside: avoid; }
+                    .host-card { break-inside: avoid; page-break-after: auto; }
+                    .screenshot-container { break-inside: avoid; }
+                    .summary { break-inside: avoid; }
+                }
+                
+                @page {
+                    margin: 0.5in;
+                }
+            </style>
+        `);
+
+						reportWindow.document.write("</head><body>");
+
+						// Report header
+						const date = new Date().toLocaleString();
+						reportWindow.document.write(`
+            <h1>Network Scan Report</h1>
+            <p>Generated on: ${date}</p>
+        `);
+
+						// Get hosts and ports
+						const hosts = this.nodes.filter((n) => n.type === "host");
+						const ports = this.nodes.filter((n) => n.type === "port");
+
+						// Summary statistics
+						reportWindow.document.write(`
+            <div class="summary card">
+                <div class="card-header">
+                    <h2 style="margin-top: 0;">Network Scan Summary</h2>
+                </div>
+                <div class="card-body">
+                    <!-- Key Stats Cards -->
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;">
+                        <div class="stat-card" style="background-color: #e3f2fd;">
+                            <div class="stat-number" style="color: #0d47a1;">${
+															hosts.length
+														}</div>
+                            <div class="stat-label">Hosts Discovered</div>
+                        </div>
+                        <div class="stat-card" style="background-color: #ffebee;">
+                            <div class="stat-number" style="color: #b71c1c;">${
+															ports.length
+														}</div>
+                            <div class="stat-label">Open Ports</div>
+                        </div>
+                        <div class="stat-card" style="background-color: #e8f5e9;">
+                            <div class="stat-number" style="color: #2e7d32;">${
+															ports.filter((p) => p.screenshot).length
+														}</div>
+                            <div class="stat-label">Screenshots</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Services Table -->
+                    <h3>Service Distribution</h3>
+                    <table style="width: 100%; margin-bottom: 20px;">
+                        <thead>
+                            <tr>
+                                <th style="width: 30%;">Service Type</th>
+                                <th style="width: 15%;">Count</th>
+                                <th style="width: 55%;">Distribution</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>HTTP/HTTPS</td>
+                                <td>${
+																	ports.filter(
+																		(p) =>
+																			p.service &&
+																			p.service.toLowerCase().includes("http")
+																	).length
+																}</td>
+                                <td>
+                                    <div class="bar-chart">
+                                        <div style="background-color: #4285f4; height: 100%; width: ${Math.min(
+																					100,
+																					(ports.filter(
+																						(p) =>
+																							p.service &&
+																							p.service
+																								.toLowerCase()
+																								.includes("http")
+																					).length /
+																						ports.length) *
+																						100
+																				)}%;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>SSH</td>
+                                <td>${
+																	ports.filter(
+																		(p) =>
+																			p.service &&
+																			p.service.toLowerCase().includes("ssh")
+																	).length
+																}</td>
+                                <td>
+                                    <div class="bar-chart">
+                                        <div style="background-color: #ea4335; height: 100%; width: ${Math.min(
+																					100,
+																					(ports.filter(
+																						(p) =>
+																							p.service &&
+																							p.service
+																								.toLowerCase()
+																								.includes("ssh")
+																					).length /
+																						ports.length) *
+																						100
+																				)}%;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>FTP</td>
+                                <td>${
+																	ports.filter(
+																		(p) =>
+																			p.service &&
+																			p.service.toLowerCase().includes("ftp")
+																	).length
+																}</td>
+                                <td>
+                                    <div class="bar-chart">
+                                        <div style="background-color: #fbbc05; height: 100%; width: ${Math.min(
+																					100,
+																					(ports.filter(
+																						(p) =>
+																							p.service &&
+																							p.service
+																								.toLowerCase()
+																								.includes("ftp")
+																					).length /
+																						ports.length) *
+																						100
+																				)}%;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Database</td>
+                                <td>${
+																	ports.filter(
+																		(p) =>
+																			p.service &&
+																			(p.service
+																				.toLowerCase()
+																				.includes("sql") ||
+																				p.service
+																					.toLowerCase()
+																					.includes("mongo") ||
+																				p.service
+																					.toLowerCase()
+																					.includes("redis"))
+																	).length
+																}</td>
+                                <td>
+                                    <div class="bar-chart">
+                                        <div style="background-color: #34a853; height: 100%; width: ${Math.min(
+																					100,
+																					(ports.filter(
+																						(p) =>
+																							p.service &&
+																							(p.service
+																								.toLowerCase()
+																								.includes("sql") ||
+																								p.service
+																									.toLowerCase()
+																									.includes("mongo") ||
+																								p.service
+																									.toLowerCase()
+																									.includes("redis"))
+																					).length /
+																						ports.length) *
+																						100
+																				)}%;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Other</td>
+                                <td>${
+																	ports.filter(
+																		(p) =>
+																			p.service &&
+																			!p.service
+																				.toLowerCase()
+																				.includes("http") &&
+																			!p.service
+																				.toLowerCase()
+																				.includes("ssh") &&
+																			!p.service
+																				.toLowerCase()
+																				.includes("ftp") &&
+																			!(
+																				p.service
+																					.toLowerCase()
+																					.includes("sql") ||
+																				p.service
+																					.toLowerCase()
+																					.includes("mongo") ||
+																				p.service
+																					.toLowerCase()
+																					.includes("redis")
+																			)
+																	).length
+																}</td>
+                                <td>
+                                    <div class="bar-chart">
+                                        <div style="background-color: #673ab7; height: 100%; width: ${Math.min(
+																					100,
+																					(ports.filter(
+																						(p) =>
+																							p.service &&
+																							!p.service
+																								.toLowerCase()
+																								.includes("http") &&
+																							!p.service
+																								.toLowerCase()
+																								.includes("ssh") &&
+																							!p.service
+																								.toLowerCase()
+																								.includes("ftp") &&
+																							!(
+																								p.service
+																									.toLowerCase()
+																									.includes("sql") ||
+																								p.service
+																									.toLowerCase()
+																									.includes("mongo") ||
+																								p.service
+																									.toLowerCase()
+																									.includes("redis")
+																							)
+																					).length /
+																						ports.length) *
+																						100
+																				)}%;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <!-- Additional Stats -->
+                    <div style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px;">
+                        <div style="flex: 1; min-width: 250px;">
+                            <h3>Port Status</h3>
+                            <table>
+                                <tr>
+                                    <td>With Screenshots:</td>
+                                    <td>${
+																			ports.filter((p) => p.screenshot).length
+																		} (${Math.round(
+							(ports.filter((p) => p.screenshot).length / ports.length) * 100
+						)}%)</td>
+                                </tr>
+                                <tr>
+                                    <td>Unique Services:</td>
+                                    <td>${
+																			new Set(
+																				ports
+																					.filter((p) => p.service)
+																					.map((p) => p.service.toLowerCase())
+																			).size
+																		}</td>
+                                </tr>
+                                <tr>
+                                    <td>Average Ports per Host:</td>
+                                    <td>${(ports.length / hosts.length).toFixed(
+																			2
+																		)}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div style="flex: 1; min-width: 250px;">
+                            <h3>Common Ports</h3>
+                            <table>
+                                <tr><th>Port</th><th>Count</th></tr>
+                                ${Array.from(
+																	ports.reduce((acc, port) => {
+																		acc.set(
+																			port.port,
+																			(acc.get(port.port) || 0) + 1
+																		);
+																		return acc;
+																	}, new Map())
+																)
+																	.sort((a, b) => b[1] - a[1])
+																	.slice(0, 5)
+																	.map(
+																		([port, count]) =>
+																			`<tr><td>${port}</td><td>${count}</td></tr>`
+																	)
+																	.join("")}
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `);
+
+						// Hosts and their ports
+						reportWindow.document.write("<h2>Host Details</h2>");
+						hosts.forEach((host) => {
+							reportWindow.document.write(`
+                <div class="host-card card">
+                    <div class="card-header host-header">
+                        ${host.hostname || host.ip || "Unknown Host"}
+                    </div>
+                    <div class="card-body">
+                        <table>
+                            <tr><th>IP Address</th><td>${
+															host.ip || "N/A"
+														}</td></tr>
+                            <tr><th>MAC Address</th><td>${
+															host.mac || "N/A"
+														}</td></tr>
+                            <tr><th>Operating System</th><td>${
+															host.os || "Unknown"
+														}</td></tr>
+                            <tr><th>Vendor</th><td>${
+															host.vendor || "Unknown"
+														}</td></tr>
+                        </table>
+                `);
+
+							// Find ports associated with this host
+							const hostPorts = this.links
+								.filter(
+									(link) =>
+										link.source.id === host.id || link.target.id === host.id
+								)
+								.map((link) => {
+									const portId =
+										link.source.id === host.id
+											? link.target.id
+											: link.source.id;
+									return this.nodes.find(
+										(n) => n.id === portId && n.type === "port"
+									);
+								})
+								.filter((port) => port !== undefined);
+
+							if (hostPorts.length > 0) {
+								reportWindow.document.write(`
+                        <h4>Open Ports: ${hostPorts.length}</h4>
+                        <table class="port-table">
+                            <thead>
+                                <tr><th>Port</th><th>Service</th><th>Version</th></tr>
+                            </thead>
+                            <tbody>
+                    `);
+
+								hostPorts.forEach((port) => {
+									reportWindow.document.write(`
+                            <tr>
+                                <td>${port.port}</td>
+                                <td>${port.service || "Unknown"}</td>
+                                <td>${port.version || "N/A"}</td>
+                            </tr>
+                        `);
+
+									// Add screenshots if available
+									if (port.screenshot) {
+										reportWindow.document.write(`
+                                <tr>
+                                    <td colspan="3">
+                                        <div class="screenshot-container">
+																						<h5>Screenshot of Port ${port.port} ${
+											port.service
+												? `(${port.service}${
+														port.version ? ` - ${port.version}` : ""
+												  })`
+												: ""
+										}</h5>
+                                            <img src="data:image/png;base64,${
+																							port.screenshot
+																						}" alt="Screenshot of port ${
+											port.port
+										}" class="screenshot">
+                                        </div>
+                                    </td>
+                                </tr>
+                            `);
+									}
+								});
+
+								reportWindow.document.write("</tbody></table>");
+							} else {
+								reportWindow.document.write("<p>No open ports detected</p>");
+							}
+
+							reportWindow.document.write("</div></div>");
+						});
+
+						// Finish the document
+						reportWindow.document.write("</body></html>");
+						reportWindow.document.close();
+					});
+				},
+
+				// Update visualization dimensions
+				resizeVisualization: function () {
+					if (!this.svg) return;
+
+					const container = document.getElementById("graphContainer");
+					const width = container.clientWidth;
+					const height = container.clientHeight;
+					this.svg.attr("width", width).attr("height", height);
+
+					if (this.simulation) {
+						this.simulation.force(
+							"center",
+							d3.forceCenter(width / 2, height / 2)
+						);
+						this.simulation.alpha(0.3).restart();
+					}
+				},
+
+				// Initialize the visualization
+				initializeVisualization: function () {
+					const container = document.getElementById("graphContainer");
+					const width = container.clientWidth;
+					const height = container.clientHeight;
+
+					// Create SVG
+					this.svg = d3
+						.select("#graphContainer")
+						.append("svg")
+						.attr("width", width)
+						.attr("height", height)
+						.call(
+							d3
+								.zoom()
+								.scaleExtent([0.1, 10]) // Allow zoom from 0.1x to 10x
+								.on("zoom", (event) => {
+									const g = d3.select("#graphContainer svg g");
+									g.attr("transform", event.transform);
+								})
+						)
+						.append("g");
+
+					// Tooltip
+					this.tooltip = d3
+						.select("body")
+						.append("div")
+						.attr("class", "tooltip")
+						.style("opacity", 0);
+
+					// Simulation
+					this.simulation = d3
+						.forceSimulation(this.nodes)
+						.force(
+							"link",
+							d3
+								.forceLink(this.links)
+								.id((d) => d.id)
+								.distance((d) =>
+									d.source.type === "port" || d.target.type === "port"
+										? 25
+										: 100
+								)
+						)
+						.force("charge", d3.forceManyBody().strength(-100))
+						.force(
+							"collision",
+							d3
+								.forceCollide()
+								.radius(
+									(d) =>
+										(d.type !== "port" ? this.nodeRadius : this.portRadius) + 2
+								)
+						)
+						.force("center", d3.forceCenter(width / 2, height / 2))
+						.alphaDecay(0.01) // Faster cooling
+						.alphaMin(0.01)
+						.velocityDecay(0.2); // More friction
+
+					// Links
+					this.link = this.svg
+						.append("g")
+						.selectAll("line")
+						.data(this.links)
+						.enter()
+						.append("line")
+						.attr("stroke-width", 1.5)
+						.attr("stroke", "#999");
+
+					// Nodes
+					this.node = this.svg
+						.append("g")
+						.selectAll("g")
+						.data(this.nodes)
+						.enter()
+						.append("g")
+						.each(function (d) {
+							const el = d3.select(this);
+
+							// For hosts with icons
+							if (d.type === "host" && d.icon && d.icon.length > 0) {
+								el.append("image")
+									.attr("xlink:href", `data:image/svg+xml;base64,${d.icon}`)
+									.attr("width", App.nodeRadius * 1.2)
+									.attr("height", App.nodeRadius * 1.2)
+									.attr("x", (-App.nodeRadius * 1.2) / 2)
+									.attr("y", (-App.nodeRadius * 1.2) / 2);
+								// Add a circle behind the image
+								el.append("circle")
+									.attr("r", App.nodeRadius)
+									.attr("fill", "lightblue")
+									.attr("stroke", "steelblue")
+									.attr("stroke-width", 2)
+									.lower();
+							}
+							// For all other nodes
+							else {
+								el.append("circle")
+									.attr(
+										"r",
+										d.type !== "port" ? App.nodeRadius : App.portRadius
+									)
+									.attr("fill", () => {
+										if (d.type === "port" && d.http_response) return "green";
+										if (d.type === "host") return "steelblue";
+										return "red";
+									});
+							}
+						})
+						.on("mouseover", this.handleMouseOver.bind(this))
+						.on("mouseout", this.handleMouseOut.bind(this))
+						.on("click", this.handleClick.bind(this))
+						.call(
+							d3
+								.drag()
+								.on("start", this.dragStarted.bind(this))
+								.on("drag", this.dragged.bind(this))
+								.on("end", this.dragEnded.bind(this))
+						);
+
+					// Simulation tick - optimized for better performance
+					this.simulation.on("tick", () => {
+						// Limit update frequency for better performance
+						if (this.simulation.alpha() < 0.5 && Math.random() > 0.3) return;
+
+						this.link
+							.attr("x1", (d) => d.source.x)
+							.attr("y1", (d) => d.source.y)
+							.attr("x2", (d) => d.target.x)
+							.attr("y2", (d) => d.target.y);
+
+						this.node.attr("transform", (d) => {
+							// Constrain node positions within viewport bounds
+							d.x = Math.max(
+								this.nodeRadius,
+								Math.min(width - this.nodeRadius, d.x)
+							);
+							d.y = Math.max(
+								this.nodeRadius,
+								Math.min(height - this.nodeRadius, d.y)
+							);
+							return `translate(${d.x}, ${d.y})`;
+						});
+					});
+
+					// Initialize filters with current values
+					this.filterNodes(
+						document.getElementById("hostFilter").value,
+						document.getElementById("togglePorts").checked,
+						document.getElementById("hideOrphans").checked
+					);
+				},
+
+				// Event handlers
+				handleMouseOver: function (event, d) {
+					// First show the tooltip with opacity 0 to calculate dimensions
+					this.tooltip.style("opacity", 0).style("display", "block");
+
+					// Create tooltip content
+					let content = "";
+					if (d.type === "host") {
+						content = "";
+						if (d.hostname)
+							content += `<h3><strong>${d.hostname}</strong></h3>`;
+						content += "<div style='text-align: left'>";
+						if (d.ip) content += `<strong>IP:</strong> ${d.ip}`;
+						if (d.os) content += `<br><strong>OS:</strong> ${d.os}`;
+						if (d.mac) content += `<br><strong>MAC:</strong> ${d.mac}`;
+						if (d.vendor) content += `<br><strong>Vendor:</strong> ${d.vendor}`;
+						content += "</div>";
+					} else {
+						content = `<strong>Port ${d.port}</strong>`;
+						if (d.service) {
+							content += `<br>Service: ${d.service}`;
+							if (d.version) content += `<br>Version: ${d.version}`;
+						}
+
+						if (d.screenshot) {
+							content += `<br><img src="data:image/png;base64,${d.screenshot}"
+											alt="Screenshot" style="max-width: 400px; max-height: 300px;
+											border: 1px solid #ccc; border-radius: 4px; margin-top: 5px;" />`;
+						}
+					}
+
+					// Set tooltip content
+					this.tooltip.html(content);
+
+					// Calculate optimal position
+					const tooltipWidth = this.tooltip.node().offsetWidth;
+					const tooltipHeight = this.tooltip.node().offsetHeight;
+					const windowWidth = window.innerWidth;
+					const windowHeight = window.innerHeight;
+
+					// Default position (prefer right side of cursor)
+					let left = event.pageX + 15;
+					let top = event.pageY - 10;
+
+					// Adjust if tooltip would overflow right edge
+					if (left + tooltipWidth > windowWidth - 10) {
+						left = event.pageX - tooltipWidth - 15; // flip to left side of cursor
+					}
+
+					// Adjust if tooltip would overflow bottom edge
+					if (top + tooltipHeight > windowHeight - 10) {
+						top = windowHeight - tooltipHeight - 10; // position at bottom of window with padding
+					}
+
+					// Make sure tooltip doesn't go above top of window
+					if (top < 10) {
+						top = 10;
+					}
+
+					// Apply position and fade in
+					this.tooltip
+						.style("left", left + "px")
+						.style("top", top + "px")
+						.transition()
+						.duration(200)
+						.style("opacity", 1);
+				},
+
+				handleMouseOut: function () {
+					this.tooltip.transition().duration(300).style("opacity", 0);
+				},
+
+				handleClick: function (event, d) {
+					// Handle node selection, display details in header bar
+					const nodeDetails = document.querySelector(".header .node-details");
+
+					if (d.type === "host") {
+						nodeDetails.innerText = `Selected: ${
+							d.hostname || d.ip || "Unknown host"
+						}`;
+					} else {
+						const hostNode = this.nodes.find(
+							(n) =>
+								n.type === "host" &&
+								this.links.some(
+									(l) =>
+										(l.source.id === n.id && l.target.id === d.id) ||
+										(l.source.id === d.id && l.target.id === n.id)
+								)
+						);
+
+						const hostName = hostNode
+							? hostNode.hostname || hostNode.ip || "Unknown host"
+							: "Unknown host";
+						nodeDetails.innerText = `Selected: ${hostName}:${d.port} (${
+							d.service || "Unknown service"
+						})`;
+
+						// View the screenshot as a modal
+						if (d.screenshot) {
+							const modal = document.createElement("div");
+							modal.style.position = "fixed";
+							modal.style.top = "0";
+							modal.style.left = "0";
+							modal.style.width = "100%";
+							modal.style.height = "100%";
+							modal.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+							modal.style.display = "flex";
+							modal.style.justifyContent = "center";
+							modal.style.alignItems = "center";
+							modal.style.zIndex = "1000";
+
+							const img = document.createElement("img");
+							img.src = `data:image/png;base64,${d.screenshot}`;
+							img.style.maxWidth = "90%";
+							img.style.maxHeight = "90%";
+							img.style.border = "1px solid #ccc";
+							img.style.borderRadius = "4px";
+
+							modal.appendChild(img);
+							document.body.appendChild(modal);
+
+							modal.addEventListener("click", () => {
+								modal.remove();
+							});
+						}
+					}
+				},
+
+				dragStarted: function (event, d) {
+					if (!event.active) this.simulation.alphaTarget(0.1).restart();
+					// Fix node position during drag
+					d.fx = d.x;
+					d.fy = d.y;
+				},
+
+				dragged: function (event, d) {
+					// Update fixed position
+					d.fx = event.x;
+					d.fy = event.y;
+				},
+
+				dragEnded: function (event, d) {
+					if (!event.active) this.simulation.alphaTarget(0);
+
+					// Keep nodes fixed after drag (uncomment to enable)
+					// d.fx = d.x;
+					// d.fy = d.y;
+
+					// Or release nodes after drag (default behavior)
+					d.fx = null;
+					d.fy = null;
+				},
+			};
+
+			// Initialize the application when DOM is loaded
+			document.addEventListener("DOMContentLoaded", () => {
+				App.init();
+			});
+		</script>
+	</body>
+</html>

@@ -1,8 +1,31 @@
-scan_*
+# Ignore scan-related files and directories
+scan*.json
+scan*.zip
+scan*
 scans/
 other/
 
+# Ignore IDE and editor settings
 .vscode/
+.idea/
+
+# Ignore virtual environments
 .venv/
+env/
+venv/
+
+# Ignore Python cache files
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Ignore logs and temporary files
+*.log
+*.tmp
+*.swp
+*.bak
+
+# Ignore system files
+.DS_Store
+Thumbs.db
