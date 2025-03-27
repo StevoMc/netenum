@@ -39,17 +39,20 @@ sudo ./netenum.sh
 ### Manual Installation
 
 1. Create and activate a Python virtual environment:
+
   ```bash
   python3 -m venv .venv
   source .venv/bin/activate
   ```
 
-2. Install Python dependencies:
+1. Install Python dependencies:
+
   ```bash
   pip install -r requirements.txt
   ```
 
-3. Install required system packages:
+1. Install required system packages:
+
   ```bash
   sudo apt install nmap chromium-browser
   ```
@@ -63,6 +66,7 @@ sudo ./netenum.sh
 ```
 
 The tool will:
+
 1. Scan your network for live hosts
 2. Enumerate services on discovered hosts
 3. Capture screenshots of web services
