@@ -757,4 +757,4 @@ if __name__ == "__main__":
         exit(1)
 
     uvicorn.run("main:app", host="0.0.0.0", port=8000,
-                server_header=False, workers=1)
+                server_header=False, workers=4)
