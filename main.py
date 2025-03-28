@@ -320,7 +320,19 @@ def http_scan(scan: Scan) -> Scan:
                 # Capture a screenshot
                 logger.info(f"Capturing screenshot of {host.ip}:{port.port}")
                 
-                screenshot_filename = f"screenshot_{host.ip.replace('.', '-')}_{port.port}.png"
+                
+                env = os.environ.copy()
+                # Set a runtime directory with proper permissions
+                runtime_dir = "/tmp/runtime-root"
+                os.makedirs(runtime_dir, exist_ok=True)
+                os.chmod(runtime_dir, 0o700)
+                env["XDG_RUNTIME_DIR"] = runtime_dir
+                
+                if os.path.exists("screenshots") is False:
+                    os.makedirs("screenshots", exist_ok=True)
+                    
+                
+                screenshot_filename = f"screenshots/screenshot_{host.ip.replace('.', '-')}_{port.port}.png"
                 
                 subprocess.run(
                     [
@@ -338,7 +350,8 @@ def http_scan(scan: Scan) -> Scan:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
-                    check=False
+                    check=False,
+                    env=env
                 )
 
                 try:
@@ -377,7 +390,8 @@ def http_scan(scan: Scan) -> Scan:
                                 f"{protocol}://{host.ip}:{port.port}"
                             ],
                             stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE
+                            stderr=subprocess.PIPE,
+                            env=env
                         )
                         screenshot, stderr = process.communicate(timeout=10)
                         if screenshot:
