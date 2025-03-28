@@ -23,7 +23,7 @@ The script generates a detailed report upon completion:
 
 The video below showcases the tool in action, demonstrating its capabilities and ease of use:
 
-https://github.com/user-attachments/assets/72d4690f-375d-44a9-8aa8-55e40a28565e
+
 
 
 ## 📋 Requirements
