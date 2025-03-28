@@ -41,7 +41,7 @@ cleanup() {
   log_debug "Performing cleanup..."
   # Remove old netenum log files
   find "${SCRIPT_DIR}" -name 'netenum_*.log' -type f -delete
-  find "/tmp/runtime-root" -type d -exec rm -rf {} \;
+  find "/tmp/runtime-root" -type d -delete
   log_info "Cleanup completed"
   log_info "Exiting script"
   exit 0
