@@ -21,6 +21,10 @@ The script generates a detailed report upon completion:
 
 ![Network Scan Report](images/report.png)
 
+The video below showcases the tool in action, demonstrating its capabilities and ease of use:
+
+![Showcase in action](videos/showcase.mp4)
+
 ## 📋 Requirements
 
 - Python 3.10 or higher
