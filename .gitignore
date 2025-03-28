@@ -4,6 +4,7 @@ scan*.zip
 scan*
 scans/
 other/
+screenshot*.png
 api_token.txt
 
 # Ignore IDE and editor settings

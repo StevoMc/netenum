@@ -319,13 +319,16 @@ def http_scan(scan: Scan) -> Scan:
 
                 # Capture a screenshot
                 logger.info(f"Capturing screenshot of {host.ip}:{port.port}")
+                
+                screenshot_filename = f"screenshot_{host.ip.replace('.', '-')}_{port.port}.png"
+                
                 subprocess.run(
                     [
                         "chromium-browser",
                         "--headless",
                         "--disable-gpu",
                         "--no-sandbox",
-                        f"--screenshot=screenshot_{host.ip.replace('.', '-')}_{port.port}.png",
+                        f"--screenshot={screenshot_filename}",
                         "--window-size=1280,720",
                         "--ignore-certificate-errors",
                         "--virtual-time-budget=5000",
@@ -339,7 +342,6 @@ def http_scan(scan: Scan) -> Scan:
                 )
 
                 try:
-                    screenshot_filename = f"screenshot_{host.ip.replace('.', '-')}_{port.port}.png"
                     if os.path.exists(screenshot_filename):
                         with open(screenshot_filename, "rb") as f:
                             screenshot = f.read()
@@ -351,7 +353,8 @@ def http_scan(scan: Scan) -> Scan:
 
                         # Remove the screenshot file after processing
                         try:
-                            os.remove(screenshot_filename)
+                            # os.remove(screenshot_filename)
+                            continue
                         except Exception as e:
                             logger.warning(
                                 f"Failed to remove screenshot file {screenshot_filename}: {e}")
