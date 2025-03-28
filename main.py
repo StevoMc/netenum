@@ -356,16 +356,22 @@ def http_scan(scan: Scan) -> Scan:
                     if os.path.exists(screenshot_filename):
                         with open(screenshot_filename, "rb") as f:
                             screenshot = f.read()
-                        base64_screenshot = base64.b64encode(
-                            screenshot).decode("utf-8")
-                        url_encoded_screenshot = urllib.parse.quote(
-                            base64_screenshot)
-                        port.screenshot = url_encoded_screenshot
+
+                        try:
+                            base64_screenshot = base64.b64encode(
+                                screenshot).decode("utf-8")
+                            url_encoded_screenshot = urllib.parse.quote(
+                                base64_screenshot)
+                            port.screenshot = url_encoded_screenshot
+                            logger.info(
+                                f"Screenshot captured for {host.ip}:{port.port} and saved to {screenshot_filename}")
+                        except Exception as e:
+                            logger.error(
+                                f"Failed to encode screenshot for {host.ip}:{port.port}: {e}")
 
                         # Remove the screenshot file after processing
                         try:
-                            # os.remove(screenshot_filename)
-                            continue
+                            os.remove(screenshot_filename)
                         except Exception as e:
                             logger.warning(
                                 f"Failed to remove screenshot file {screenshot_filename}: {e}")
