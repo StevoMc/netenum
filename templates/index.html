@@ -282,6 +282,8 @@
 				node: null,
 				currentFilterHost: null,
 				simulationRunning: true,
+				previousState: null,
+				timeout: 10000,
 
 				// Initialize the application
 				init: function () {
@@ -298,48 +300,94 @@
 					// Load graph data
 					this.loadGraphData();
 
-					// Get initial state from API
-					this.getState();
+					// Add property to track previous state
+					this.previousState = null;
 
-					// Poll state from API every 30 seconds
-					timeout = 30000;
-					setInterval(() => {
-						timeout = this.getState();
-					}, timeout);
+					// Get initial state from API
+					this.previousState = this.getState();
+
+					setInterval(async () => {
+						// Get current state
+						const currentState = await this.getState();
+
+						if (!currentState) return;
+
+						if (!currentState.scanning) {
+							this.timeout = 60000;
+						}
+
+						// Only reload if state has changed (comparing scanning status)
+						if (
+							this.previousState?.scanning !== currentState?.scanning ||
+							this.previousState?.current_host !== currentState?.current_host ||
+							this.previousState?.result_length !== currentState?.result_length
+						) {
+							console.log("State changed, reloading visualization");
+
+							// Clean up existing visualization
+							if (this.svg) {
+								// Stop simulation if running
+								if (this.simulation) {
+									this.simulation.stop();
+								}
+
+								// Remove old SVG and tooltip
+								d3.select("#graphContainer svg").remove();
+								if (this.tooltip) {
+									this.tooltip.remove();
+								}
+
+								// Reset references
+								this.svg = null;
+								this.simulation = null;
+								this.link = null;
+								this.node = null;
+								this.tooltip = null;
+							}
+
+							// Load new graph data and rebuild visualization
+							this.loadGraphData();
+						}
+
+						// Update previous state
+						this.previousState = currentState;
+					}, this.timeout);
 				},
 
-				getState: function () {
+				getState: async function () {
 					const scanStatus = document.getElementById("scanStatus");
 
-					timeout = 30000;
+					try {
+						const response = await fetch("/api/v1/state");
 
-					fetch("/api/v1/state")
-						.then((response) => {
-							if (!response.ok)
-								throw new Error(`HTTP error ${response.status}`);
-							return response.json();
-						})
-						.then((data) => {
-							if (data.scanning) {
-								scanStatus.innerText = data.current_host
-									? `Scanning: ${data.current_host}`
-									: "Scan in progress...";
-								scanStatus.style.color = "#007bff";
-								timeout = 30000;
-							} else {
-								scanStatus.innerText = "No scan in progress";
-								scanStatus.style.color = "green";
-								timeout = 120000;
-							}
-						})
-						.catch((error) => {
-							console.error("Error fetching state:", error);
-							scanStatus.innerText = `Error: ${
-								error.message || "Failed to fetch state"
-							}`;
-							scanStatus.style.color = "red";
-						});
-					return timeout;
+						if (!response.ok) {
+							throw new Error(
+								`HTTP error ${response.status}: ${response.statusText}`
+							);
+						}
+
+						const data = await response.json();
+
+						// Update the scan status UI based on state
+						if (data.scanning) {
+							scanStatus.innerText = data.current_host
+								? `Scanning: ${data.current_host}`
+								: "Scan in progress...";
+							scanStatus.style.color = "#007bff";
+						} else {
+							scanStatus.innerText = "No scan in progress";
+							scanStatus.style.color = "green";
+						}
+
+						return data;
+					} catch (error) {
+						console.error("Error fetching state:", error);
+						scanStatus.innerText = `Error: ${
+							error.message || "Failed to fetch state"
+						}`;
+						scanStatus.style.color = "red";
+						return { error: error.message };
+					}
 				},
 
 				// Fetch available networks from API
@@ -368,22 +416,19 @@
 
 								// Add networks from API
 								data.available_networks
-								// unique
+									// unique
 									.filter((network, index, self) => {
-										return (
-											index ===
-											self.findIndex((n) => n === network)
-										);
+										return index === self.findIndex((n) => n === network);
 									})
 									// sort
 									.sort((a, b) => a.localeCompare(b))
 									// add to select
-								.forEach((network) => {
-									const option = document.createElement("option");
-									option.value = network;
-									option.textContent = network;
-									networkSelect.appendChild(option);
-								});
+									.forEach((network) => {
+										const option = document.createElement("option");
+										option.value = network;
+										option.textContent = network;
+										networkSelect.appendChild(option);
+									});
 							} else {
 								const option = document.createElement("option");
 								option.value = "";

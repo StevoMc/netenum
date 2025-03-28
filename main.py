@@ -73,6 +73,7 @@ class Scan:
 class State:
     scanning: bool
     current_host: Optional[str]
+    result_length: Optional[int] = None
 
 
 class ScanInput(BaseModel):
@@ -142,7 +143,7 @@ app.include_router(router)
 
 # Scanning utility functions
 
-state = State(scanning=False, current_host=None)
+state = State(scanning=False, current_host=None, result_length=None)
 
 # Make sure the scan directory exists else create it
 if not os.path.exists("scans"):
@@ -197,6 +198,9 @@ def load_scan_from_json(filename: str = "scan_results.json") -> Scan:
 
 
 def ping_sweep(network: str, scan: Scan) -> List[Host]:
+    global state
+    state.scanning = True
+    state.current_host = None
     alive_hosts = []
     logger.info(f"Starting ping sweep on network: {str(network)}")
     try:
@@ -431,7 +435,7 @@ def run_scan(network="192.168.178.0/24"):
     # Limit ports to minimize surface
     ports = list(range(1, 65536))
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
         futures = {executor.submit(
             port_scan, h, ports, scan): h for h in alive_hosts}
         for future in concurrent.futures.as_completed(futures):
@@ -501,6 +505,17 @@ async def get_state():
     def block_get_state():
         global state
         try:
+            try:
+                if os.path.exists("scan_results.json"):
+                    total_bytes = os.path.getsize("scan_results.json")
+                    state.result_length = total_bytes
+                else:
+                    logger.warning("scan_results.json does not exist.")
+                    state.result_length = 0
+            except Exception as err:
+                logger.error(
+                    f"Failed to get file size of scan_results.json: {err}")
+                state.result_length = None
             return state
         except Exception as e:
             logger.error(f"Error getting state: {e}")
@@ -839,16 +854,17 @@ if __name__ == "__main__":
         return port
 
     PORT = 3000
+    WORKERS = 1
 
     try:
         uvicorn.run("main:app", host="0.0.0.0", port=PORT,
-                    server_header=False, workers=4)
+                    server_header=False, workers=WORKERS)
     except OSError as e:
         if "Address already in use" in str(e):
             free_port = find_free_port()
             logger.info(
                 f"Port {PORT} is in use. Falling back to port {free_port}")
             uvicorn.run("main:app", host="0.0.0.0", port=free_port,
-                        server_header=False, workers=4)
+                        server_header=False, workers=WORKERS)
         else:
             raise
